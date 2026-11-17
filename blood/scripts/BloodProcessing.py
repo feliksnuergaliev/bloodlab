@@ -3,8 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 DATA = "data/"
-CAL = [("40 mmHg.txt", 40), ("80 mmHg.txt", 80),
-       ("120 mmHg.txt", 120), ("160 mmHg.txt", 160)]
+CAL = [ ("rest.txt", 160),("fitness.txt", 160)]
 
 
 def read(filename):
