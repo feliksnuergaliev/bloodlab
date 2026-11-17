@@ -1,36 +1,37 @@
-# mcp3021_driver.py — драйвер АЦП MCP3021 (10 бит) по I2C
-#
-# Использование:
-#   from mcp3021_driver import MCP3021
-#   adc = MCP3021(5.0)          # 5.0 — опорное напряжение, В
-#   print(adc.get_number())     # отсчёт 0..1023
-#   adc.deinit()
-#
-# Перед запуском: включите I2C (sudo raspi-config → Interface Options → I2C)
-# и установите библиотеку: sudo apt install python3-smbus2
-
-from smbus2 import SMBus, i2c_msg
-
-MCP3021_ADDRESS = 0x4D   # адрес по умолчанию (1001101)
-
+import smbus
+import time
 
 class MCP3021:
-    def __init__(self, vref, bus_number=1, address=MCP3021_ADDRESS):
-        self.vref = vref
-        self.address = address
-        self.bus = SMBus(bus_number)
-
-    def get_number(self):
-        # MCP3021 не имеет регистров: одно чтение из 2 байт
-        read = i2c_msg.read(self.address, 2)
-        self.bus.i2c_rdwr(read)
-        first, second = list(read)
-        # первый байт: 0 0 0 0 D9 D8 D7 D6
-        # второй байт: D5 D4 D3 D2 D1 D0 0 0
-        return ((first & 0x0F) << 6) | (second >> 2)
-
-    def get_voltage(self):
-        return self.get_number() * self.vref / 1024
+    def __init__(self, dynamic_range, verbose = False):
+        self.bus = smbus.SMBus(1)
+        self.dynamic_range = dynamic_range
+        self.address = 0x4D
+        self.verbose = verbose
 
     def deinit(self):
         self.bus.close()
+
+    def get_number(self):
+        data = self.bus.read_word_data(self.address, 0)
+        lower_data_byte = data >> 8
+        upper_data_byte = data & 0xFF
+        number = (upper_data_byte << 6) | (lower_data_byte >> 2)
+        if self.verbose:
+            print(f"Принятые данные: {data}, Старший байт: {upper_data_byte:x}, Младший байт: {lower_data_byte:x}, Число: {number}")
+        return number
+    
+    def get_voltage(self):
+        number = self.get_number()
+        return number / 1023 * self.dynamic_range
+
+if __name__ == "__main__":
+    try:
+        mcp = MCP3021(5.0, verbose = True)
+        while True:
+                voltage = mcp.get_voltage()
+                print(f"Напряжение: {voltage:.2f} В")
+                time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nОстановлено пользователем")
+    finally:
+        mcp.deinit()
