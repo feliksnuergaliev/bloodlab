@@ -15,7 +15,6 @@ def read(path):
     return np.array(values)
 
 DATA = "data/"
-# Укажите свои четыре файла
 files = {
     40:  "40 mmHg.txt",
     80:  "80 mmHg.txt",

@@ -7,7 +7,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# Калибровка из п5.4 (замени на свои k и b, если считал сам!)
 K, B = 0.4093, -10.06
 
 
@@ -28,15 +27,12 @@ def process(filename, label, out_dir):
     rate = len(counts) / duration
     t = np.linspace(0, duration, len(counts))
 
-    # 1. Давление
     p = K * counts + B
     p = moving_average(p, max(1, int(rate * 0.05)))
 
-    # 2. Тренд и пульсации
     trend = moving_average(p, max(1, int(rate * 1.5)))
     wave = p - trend
 
-    # --- Обрезка (рабочее окно) ---
     edge = int(rate * 1.5)
     start = np.argmax(trend[int(rate * 2):]) + int(rate * 2) + int(rate * 5)
     below = np.where(trend[start:] < 60)[0]
@@ -51,14 +47,12 @@ def process(filename, label, out_dir):
     peaks, _ = find_peaks(wave_c, distance=int(rate * 0.4), prominence=0.3)
     troughs, _ = find_peaks(-wave_c, distance=int(rate * 0.4), prominence=0.3)
 
-    # --- ПУЛЬС (строго на участке 10-30 с) ---
     inside = peaks[(t_c[peaks] > 10) & (t_c[peaks] < 30)]
     if len(inside) > 1:
         pulse = (len(inside) - 1) * 60 / (t_c[inside[-1]] - t_c[inside[0]])
     else:
         pulse = np.nan
 
-    # --- АМПЛИТУДА ВОЛН ---
     amp, tAmp, pap = [], [], []
     for a, c in zip(troughs[:-1], troughs[1:]):
         top = a + np.argmax(wave_c[a:c])
@@ -75,22 +69,17 @@ def process(filename, label, out_dir):
     valid_waves = np.array([])
 
     if len(amp) > 0:
-        # Сглаживаем медианой по 7 волнам
         env = median_filter(amp, size=7)
 
-        # --- СИСТОЛА (5-я волна) ---
-        valid_waves = np.where(pap > 40)[0]  # Берем только участок спуска до 40 мм рт.ст.
+        valid_waves = np.where(pap > 40)[0]
         if len(valid_waves) >= 5:
             sys_idx = valid_waves[4]
             t_sys = tAmp[sys_idx]
             p_sys = pap[sys_idx]
 
-        # --- ДИАСТОЛА ---
-        # Ищем максимум амплитуды, игнорируя последние 10 волн (защита от артефактов в конце)
         search_limit = max(1, len(env) - 10)
         imax = np.argmax(env[:search_limit])
 
-        # Ищем падение амплитуды ниже 0.8 от максимума
         after = np.where(env[imax:] <= 0.8 * env[imax])[0]
 
         if len(after) > 0:
@@ -98,22 +87,17 @@ def process(filename, label, out_dir):
             t_dia = tAmp[dia_idx]
             p_dia = pap[dia_idx]
         else:
-            # ЗАЩИТА: Если амплитуда не упала (запись оборвалась),
-            # берем давление в самом конце записи
             dia_idx = len(pap) - 1
             t_dia = tAmp[dia_idx]
             p_dia = pap[dia_idx]
             print(f"  [Внимание] Амплитуда не упала до 0.8. Диастола взята по нижнему давлению.")
 
-    # --- ВЫВОД В КОНСОЛЬ ---
     print(f"--- {label}")
     print(f"  Пульс: {pulse:.0f} уд/мин")
     print(f"  Давление: {p_sys:.0f}/{p_dia:.0f} мм рт. ст.")
 
-    # --- ПОСТРОЕНИЕ ГРАФИКОВ (1 рисунок, 3 окна) ---
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 14))
 
-    # 1. Окно давления
     ax1.plot(t, p, lw=1, label="Давление в манжете")
     if not np.isnan(p_sys):
         ax1.plot([t_sys, t_dia], [p_sys, p_dia], "r*", markersize=12,
@@ -126,7 +110,6 @@ def process(filename, label, out_dir):
     ax1.legend(loc="upper right")
     ax1.grid(True, alpha=0.3)
 
-    # 2. Окно пульсаций
     ax2.plot(t_c, wave_c, lw=0.8, label="Пульсации")
     ax2.plot(t_c[peaks], wave_c[peaks], "r.", markersize=6, label="Пики")
     ax2.set_xlim(10, 30)
@@ -136,7 +119,6 @@ def process(filename, label, out_dir):
     ax2.legend(loc="upper right")
     ax2.grid(True, alpha=0.3)
 
-    # 3. Окно амплитуды
     if len(amp) > 0:
         ax3.scatter(tAmp, amp, alpha=0.4, label="амплитуда каждой волны", color="tab:blue")
         ax3.plot(tAmp, env, label="сглаженная амплитуда", color="tab:blue", lw=2)
@@ -169,7 +151,6 @@ if __name__ == "__main__":
     out_dir = "plots"
     os.makedirs(out_dir, exist_ok=True)
 
-    # Жестко задаем нужные файлы
     filenames = ["rest.txt", "fitness.txt", "rest_aidar.txt", "fitness_aidar.txt"]
 
     for filename in filenames:
